@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>准考证生成器</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --card: #fff; --text: #1f2430; --muted: #6b7280;
+    --line: #d9dce3; --primary: #2563eb; --primary-d: #1d4ed8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 20px 16px 48px; }
+  h1 { font-size: 22px; margin: 8px 0 4px; }
+  .credit { margin: 0 0 16px; font-size: 13px; color: var(--muted); }
+  .credit a { color: var(--primary); text-decoration: none; }
+
+  /* 首页 */
+  #landing {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    text-align: center; padding: 24px;
+    background: linear-gradient(160deg, #eef3ff 0%, #f4f5f7 55%, #fff 100%);
+  }
+  #landing .big {
+    font-size: clamp(56px, 16vw, 150px); font-weight: 800; letter-spacing: 0.04em;
+    line-height: 1.1; color: #111827;
+  }
+  #landing .sub { margin-top: 14px; font-size: clamp(15px, 3.4vw, 22px); color: var(--muted); letter-spacing: 4px; }
+  #landing .start { margin-top: 44px; font-size: 18px; padding: 14px 36px; border-radius: 999px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
+  .card h2 { font-size: 15px; margin: 0 0 12px; color: var(--muted); font-weight: 600; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+  input[type=text], textarea {
+    width: 100%; padding: 9px 10px; font-size: 15px; border: 1px solid var(--line);
+    border-radius: 8px; background: #fff; color: var(--text); font-family: inherit;
+  }
+  input:focus, textarea:focus { outline: 2px solid #bfd3ff; border-color: var(--primary); }
+  textarea { resize: vertical; min-height: 80px; }
+  .row {
+    display: grid; grid-template-columns: 1.4fr 1fr 1.1fr 1.2fr .8fr auto; gap: 8px; align-items: end;
+    margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px dashed var(--line);
+  }
+  .row:last-child { border-bottom: 0; }
+  @media (max-width: 600px) { .row { grid-template-columns: 1fr 1fr; } .row .del { grid-column: 1 / -1; } }
+  .datebox { display: flex; gap: 6px; }
+  .datebox input[type=date] { width: 40px; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+  button {
+    font-family: inherit; font-size: 15px; border-radius: 8px; border: 1px solid var(--line);
+    background: #fff; color: var(--text); padding: 9px 14px; cursor: pointer;
+  }
+  button:hover { background: #f1f3f7; }
+  button.primary { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600; }
+  button.primary:hover { background: var(--primary-d); }
+  button.del { color: #b91c1c; }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+  .photo-line { display: flex; align-items: center; gap: 10px; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+  /* 预览区 */
+  #previewCard { display: none; }
+  #previewOuter { width: 100%; overflow: hidden; background: #e8eaee; border-radius: 8px; }
+  #previewScaler { transform-origin: top left; }
+
+  /* 准考证本体（A4 比例：794 x 1123 px） */
+  #ticket {
+    width: 794px; height: 1123px; background: #fff; color: #111; padding: 56px 60px;
+    font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", "SimSun", sans-serif;
+    position: relative;
+  }
+  #ticket .frame { border: 3px double #111; padding: 34px 36px; height: 100%; display: flex; flex-direction: column; }
+  #ticket .school { text-align: center; font-size: 18px; letter-spacing: 4px; min-height: 26px; }
+  #ticket .exam { text-align: center; font-size: 20px; margin-top: 6px; letter-spacing: 2px; }
+  #ticket .title { text-align: center; font-size: 42px; font-weight: 700; letter-spacing: 18px; margin: 14px 0 26px; padding-left: 18px; }
+  #ticket .info { display: flex; gap: 24px; align-items: stretch; margin-bottom: 26px; }
+  #ticket .fields { flex: 1; display: flex; flex-direction: column; justify-content: space-around; gap: 14px; }
+  #ticket .f { display: flex; align-items: baseline; font-size: 22px; }
+  #ticket .f b { font-weight: 600; width: 110px; flex: none; letter-spacing: 6px; }
+  #ticket .f span { flex: 1; border-bottom: 1.5px solid #111; padding: 0 6px 3px; min-height: 34px; font-size: 24px; }
+  #ticket .photo {
+    width: 130px; height: 182px; border: 1.5px solid #111; flex: none; display: flex;
+    align-items: center; justify-content: center; text-align: center; font-size: 14px; color: #666; overflow: hidden;
+  }
+  #ticket .photo img { width: 100%; height: 100%; object-fit: cover; }
+  #ticket table { width: 100%; border-collapse: collapse; font-size: 17px; }
+  #ticket th, #ticket td { border: 1.5px solid #111; padding: 12px 6px; text-align: center; }
+  #ticket th { background: #f0f0f0; font-weight: 600; letter-spacing: 2px; }
+  #ticket .notes { margin-top: 26px; font-size: 16px; }
+  #ticket .notes h3 { margin: 0 0 8px; font-size: 18px; letter-spacing: 4px; }
+  #ticket .notes div { white-space: pre-wrap; line-height: 1.9; }
+  #ticket .foot { margin-top: auto; text-align: center; font-size: 12px; color: #888; padding-top: 10px; }
+</style>
+</head>
+<body>
+<section id="landing">
+  <div class="landing-inner">
+    <div class="big">QI Ji 制作</div>
+    <div class="sub">准考证生成器 · 开源项目</div>
+    <button class="primary start" id="start" type="button">开始制作准考证</button>
+  </div>
+</section>
+
+<div class="wrap" id="editor" style="display:none">
+  <h1>准考证生成器</h1>
+  <p class="credit">本项目是 QI Ji 的开源项目 · <a href="#" id="backHome">返回首页</a></p>
+
+  <div class="card">
+    <h2>考生信息</h2>
+    <div class="grid">
+      <div><label for="name">姓名</label><input type="text" id="name" placeholder="例如：张三"></div>
+      <div><label for="no">考号</label><input type="text" id="no" placeholder="例如：20261001001"></div>
+      <div><label for="school">学校 / 机构（可选）</label><input type="text" id="school" placeholder="例如：第一中学"></div>
+      <div><label for="exam">考试名称</label><input type="text" id="exam" value="模拟考试"></div>
+      <div>
+        <label>照片（可选）</label>
+        <div class="photo-line">
+          <input type="file" id="photo" accept="image/*">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>考试安排</h2>
+    <div id="rows"></div>
+    <button id="addRow" type="button">＋ 添加一场考试</button>
+    <div class="hint">日期、科目可从下拉选项中选择，也可以直接输入；时间请自行输入，例如 09:00-11:30。每场考试的考场地点和座位号可以分别填写。</div>
+  </div>
+
+  <div class="card">
+    <h2>考生须知（可修改）</h2>
+    <textarea id="notes">1. 考生须携带本准考证及有效身份证件按时入场。
+2. 开考前 15 分钟到达考场，听从监考人员安排。
+3. 开考 15 分钟后不得入场，考试期间不得提前交卷离场。
+4. 严禁携带手机等通讯工具进入考场，严守考试纪律。</textarea>
+  </div>
+
+  <div class="actions">
+    <button class="primary" id="ok" type="button">确定并生成 PDF</button>
+    <button id="print" type="button">直接打印</button>
+  </div>
+
+  <div class="card" id="previewCard" style="margin-top:16px">
+    <h2>预览</h2>
+    <div id="previewOuter"><div id="previewScaler"><div id="ticket"></div></div></div>
+  </div>
+</div>
+
+<datalist id="dateList"></datalist>
+<datalist id="subjectList">
+  <option value="语文"><option value="数学"><option value="英语"><option value="物理">
+  <option value="化学"><option value="生物"><option value="历史"><option value="地理"><option value="政治">
+</datalist>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  let photoData = "";
+
+  function fmtDate(d) { return d.getFullYear() + "年" + (d.getMonth() + 1) + "月" + d.getDate() + "日"; }
+
+  // 日期选项：今天起 60 天
+  (function () {
+    const dl = $("dateList"), t = new Date();
+    for (let i = 0; i < 60; i++) {
+      const d = new Date(t.getFullYear(), t.getMonth(), t.getDate() + i);
+      const o = document.createElement("option"); o.value = fmtDate(d); dl.appendChild(o);
+    }
+  })();
+
+  function addRow(date, subject, time) {
+    const r = document.createElement("div");
+    r.className = "row";
+    r.innerHTML =
+      '<div><label>考试日期</label><div class="datebox">' +
+      '<input type="text" class="d" list="dateList" placeholder="选择或输入日期">' +
+      '<input type="date" class="dp" title="日历选择"></div></div>' +
+      '<div><label>考试科目</label><input type="text" class="s" list="subjectList" placeholder="选择或输入科目"></div>' +
+      '<div><label>考试时间</label><input type="text" class="t" placeholder="09:00-11:30"></div>' +
+      '<div><label>考场地点</label><input type="text" class="p" placeholder="如：教学楼301"></div>' +
+      '<div><label>座位号</label><input type="text" class="n" placeholder="如：15"></div>' +
+      '<div class="del"><button type="button" class="del">删除</button></div>';
+    r.querySelector(".d").value = date || "";
+    r.querySelector(".s").value = subject || "";
+    r.querySelector(".t").value = time || "";
+    r.querySelector(".dp").addEventListener("change", e => {
+      if (!e.target.value) return;
+      const [y, m, d] = e.target.value.split("-").map(Number);
+      r.querySelector(".d").value = y + "年" + m + "月" + d + "日";
+    });
+    r.querySelector("button.del").addEventListener("click", () => {
+      if ($("rows").children.length > 1) r.remove(); else {
+        r.querySelectorAll("input").forEach(i => i.value = "");
+      }
+    });
+    $("rows").appendChild(r);
+  }
+  addRow();
+  $("addRow").addEventListener("click", () => addRow());
+
+  $("photo").addEventListener("change", e => {
+    const f = e.target.files[0];
+    if (!f) { photoData = ""; return; }
+    const fr = new FileReader();
+    fr.onload = () => { photoData = fr.result; };
+    fr.readAsDataURL(f);
+  });
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  function collect() {
+    const rows = [...document.querySelectorAll("#rows .row")].map(r => ({
+      d: r.querySelector(".d").value.trim(),
+      s: r.querySelector(".s").value.trim(),
+      t: r.querySelector(".t").value.trim(),
+      p: r.querySelector(".p").value.trim(),
+      n: r.querySelector(".n").value.trim()
+    })).filter(x => x.d || x.s || x.t || x.p || x.n);
+    return {
+      name: $("name").value.trim(), no: $("no").value.trim(), school: $("school").value.trim(),
+      exam: $("exam").value.trim() || "考试",
+      notes: $("notes").value.trim(), rows
+    };
+  }
+
+  function buildTicket(v) {
+    let trs = v.rows.map(x =>
+      "<tr><td>" + esc(x.d) + "</td><td>" + esc(x.s) + "</td><td>" + esc(x.t) + "</td><td>" + esc(x.p) + "</td><td>" + esc(x.n) + "</td></tr>").join("");
+    const minRows = 6;
+    for (let i = v.rows.length; i < minRows; i++) trs += "<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>";
+    $("ticket").innerHTML =
+      '<div class="frame">' +
+      '<div class="school">' + esc(v.school) + '</div>' +
+      '<div class="exam">' + esc(v.exam) + '</div>' +
+      '<div class="title">准考证</div>' +
+      '<div class="info"><div class="fields">' +
+      '<div class="f"><b>姓名</b><span>' + esc(v.name) + '</span></div>' +
+      '<div class="f"><b>考号</b><span>' + esc(v.no) + '</span></div>' +
+      '</div><div class="photo">' + (photoData ? '<img src="' + photoData + '">' : "照片<br>(贴照片处)") + '</div></div>' +
+      '<table><thead><tr><th>考试日期</th><th>考试科目</th><th>考试时间</th><th>考场地点</th><th>座位号</th></tr></thead><tbody>' + trs + '</tbody></table>' +
+      (v.notes ? '<div class="notes"><h3>考生须知</h3><div>' + esc(v.notes) + '</div></div>' : "") +
+      '<div class="foot">本准考证仅供模拟考试 / 练习使用</div>' +
+      '</div>';
+  }
+
+  function fitPreview() {
+    const outer = $("previewOuter"), sc = $("previewScaler");
+    const s = Math.min(1, outer.clientWidth / 794);
+    sc.style.transform = "scale(" + s + ")";
+    outer.style.height = (1123 * s) + "px";
+  }
+  window.addEventListener("resize", fitPreview);
+
+  function render() {
+    const v = collect();
+    if (!v.name || !v.no) { alert("请先填写姓名和考号"); return null; }
+    if (!v.rows.length) { alert("请至少填写一场考试的信息"); return null; }
+    buildTicket(v);
+    $("previewCard").style.display = "block";
+    fitPreview();
+    return v;
+  }
+
+  $("ok").addEventListener("click", async () => {
+    const v = render();
+    if (!v) return;
+    if (!window.html2canvas || !window.jspdf) {
+      alert("PDF 组件加载失败（可能是网络问题），将改用打印方式，请在打印窗口选择“另存为 PDF”。");
+      window.print(); return;
+    }
+    const btn = $("ok"); btn.disabled = true; btn.textContent = "生成中…";
+    const sc = $("previewScaler"), old = sc.style.transform;
+    try {
+      sc.style.transform = "none";
+      const canvas = await html2canvas($("ticket"), { scale: 2, backgroundColor: "#ffffff", useCORS: true });
+      sc.style.transform = old;
+      const pdf = new window.jspdf.jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      pdf.addImage(canvas.toDataURL("image/jpeg", 0.95), "JPEG", 0, 0, 210, 297);
+      pdf.save("准考证_" + v.name + "_" + v.no + ".pdf");
+    } catch (e) {
+      sc.style.transform = old;
+      alert("生成失败：" + e.message);
+    } finally {
+      btn.disabled = false; btn.textContent = "确定并生成 PDF";
+    }
+  });
+
+  $("print").addEventListener("click", () => { if (render()) setTimeout(() => window.print(), 100); });
+})();
+</script>
+
+<script>
+(function () {
+  const landing = document.getElementById("landing"), editor = document.getElementById("editor");
+  function show(edit) {
+    landing.style.display = edit ? "none" : "flex";
+    editor.style.display = edit ? "block" : "none";
+    window.scrollTo(0, 0);
+  }
+  document.getElementById("start").addEventListener("click", () => show(true));
+  document.getElementById("backHome").addEventListener("click", e => { e.preventDefault(); show(false); });
+})();
+</script>
+
+<style media="print">
+  @page { size: A4; margin: 0; }
+  body { background: #fff; }
+  .wrap > :not(#previewCard), #previewCard h2 { display: none !important; }
+  .wrap { padding: 0; max-width: none; }
+  #previewCard { display: block !important; border: 0; padding: 0; margin: 0 !important; }
+  #previewOuter { height: auto !important; background: #fff; border-radius: 0; overflow: visible; }
+  #previewScaler { transform: scale(0.99) !important; }
+</style>
+</body>
+</html>
